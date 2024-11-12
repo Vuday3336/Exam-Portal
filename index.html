@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Exam Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a73e8;
+            margin-bottom: 30px;
+        }
+
+        .student-form {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            max-width: 300px;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .question-container {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .question {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .option {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .option:hover {
+            background-color: #f0f7ff;
+            border-color: #1a73e8;
+        }
+
+        .option.selected {
+            background-color: #1a73e8;
+            color: white;
+            border-color: #1a73e8;
+        }
+
+        .timer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        button {
+            background-color: #1a73e8;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+
+        .results {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .score {
+            font-size: 24px;
+            color: #1a73e8;
+            margin: 20px 0;
+        }
+
+        #examSection {
+            display: none;
+        }
+
+        #resultsSection {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="startSection">
+            <h1>Online Exam Portal</h1>
+            <div class="student-form">
+                <input type="text" id="studentName" placeholder="Enter your name" required>
+                <button onclick="startExam()">Start Exam</button>
+            </div>
+        </div>
+
+        <div id="examSection">
+            <div class="timer" id="timer">03:00</div>
+            <div id="questions"></div>
+            <button onclick="submitExam()">Submit Exam</button>
+        </div>
+
+        <div id="resultsSection">
+            <h1>Exam Results</h1>
+            <div class="results">
+                <div id="studentResult"></div>
+                <div class="score" id="scoreDisplay"></div>
+                <button onclick="location.reload()">Take Another Exam</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let answers = {};
+        let timeLeft = 180;
+        let timerInterval;
+
+        function startExam() {
+            const name = document.getElementById('studentName').value;
+            if (!name.trim()) {
+                alert('Please enter your name');
+                return;
+            }
+
+            fetch('http://localhost:5000/api/questions')
+                .then(response => response.json())
+                .then(data => {
+                    questions = data;
+                    displayQuestions();
+                    document.getElementById('startSection').style.display = 'none';
+                    document.getElementById('examSection').style.display = 'block';
+                    startTimer();
+                });
+        }
+
+        function displayQuestions() {
+            const questionsDiv = document.getElementById('questions');
+            questions.forEach(q => {
+                const questionHtml = `
+                    <div class="question-container">
+                        <div class="question">${q.question}</div>
+                        <div class="options">
+                            ${q.options.map(option => `
+                                <div class="option" onclick="selectOption(${q.id}, '${option}')"
+                                    id="option-${q.id}-${option}">
+                                    ${option}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                questionsDiv.innerHTML += questionHtml;
+            });
+        }
+
+        function selectOption(questionId, option) {
+            answers[questionId] = option;
+            
+            // Reset all options for this question
+            questions.forEach(q => {
+                if (q.id === questionId) {
+                    q.options.forEach(opt => {
+                        document.getElementById(`option-${questionId}-${opt}`).classList.remove('selected');
+                    });
+                }
+            });
+            
+            // Select the clicked option
+            document.getElementById(`option-${questionId}-${option}`).classList.add('selected');
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                document.getElementById('timer').textContent = 
+                    `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+                if (timeLeft <= 0) {
+                    submitExam();
+                }
+            }, 1000);
+        }
+
+        function submitExam() {
+            clearInterval(timerInterval);
+            const studentName = document.getElementById('studentName').value;
+
+            fetch('http://localhost:5000/api/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_name: studentName,
+                    answers: answers
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('examSection').style.display = 'none';
+                document.getElementById('resultsSection').style.display = 'block';
+                document.getElementById('studentResult').textContent = `Name: ${studentName}`;
+                document.getElementById('scoreDisplay').textContent = 
+                    `Score: ${data.score}/${data.total} (${data.percentage})`;
+            });
+        }
+    </script>
+</body>
+</html>
