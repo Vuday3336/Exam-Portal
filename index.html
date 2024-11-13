@@ -129,6 +129,9 @@
             text-align: center;
             margin: 10px 0;
             font-size: 16px;
+            padding: 10px;
+            background-color: #ffe6e6;
+            border-radius: 5px;
         }
 
         #examSection {
@@ -173,12 +176,34 @@
     </div>
 
     <script>
-        let questions = [];
+        // Sample questions (replace with your actual questions)
+        const sampleQuestions = [
+            {
+                id: 1,
+                question: "What is the capital of France?",
+                options: ["London", "Berlin", "Paris", "Madrid"],
+                correct: "Paris"
+            },
+            {
+                id: 2,
+                question: "Which planet is known as the Red Planet?",
+                options: ["Venus", "Mars", "Jupiter", "Saturn"],
+                correct: "Mars"
+            },
+            {
+                id: 3,
+                question: "What is 2 + 2?",
+                options: ["3", "4", "5", "6"],
+                correct: "4"
+            }
+        ];
+
+        let questions = sampleQuestions;
         let answers = {};
         let timeLeft = 180;
         let timerInterval;
 
-        async function checkAndStartExam() {
+        function checkAndStartExam() {
             const studentId = document.getElementById('studentId').value;
             const name = document.getElementById('studentName').value;
             const errorMessage = document.getElementById('errorMessage');
@@ -189,36 +214,26 @@
                 return;
             }
 
-            try {
-                // Check if the ID has already submitted an exam
-                const checkResponse = await fetch(`http://localhost:5000/api/check-submission/${studentId}`);
-                const checkResult = await checkResponse.json();
+            // Check if ID exists in localStorage
+            const submittedExams = JSON.parse(localStorage.getItem('submittedExams') || '[]');
+            const hasSubmitted = submittedExams.includes(studentId);
 
-                if (checkResult.submitted) {
-                    errorMessage.textContent = 'You have already submitted an exam with this ID number';
-                    errorMessage.style.display = 'block';
-                    return;
-                }
-
-                // If not submitted, proceed with starting the exam
-                errorMessage.style.display = 'none';
-                startExam();
-            } catch (error) {
-                errorMessage.textContent = 'Error checking exam status. Please try again.';
+            if (hasSubmitted) {
+                errorMessage.textContent = 'You have already submitted an exam with this ID number';
                 errorMessage.style.display = 'block';
+                return;
             }
+
+            // If not submitted, proceed with starting the exam
+            errorMessage.style.display = 'none';
+            startExam();
         }
 
         function startExam() {
-            fetch('http://localhost:5000/api/questions')
-                .then(response => response.json())
-                .then(data => {
-                    questions = data;
-                    displayQuestions();
-                    document.getElementById('startSection').style.display = 'none';
-                    document.getElementById('examSection').style.display = 'block';
-                    startTimer();
-                });
+            displayQuestions();
+            document.getElementById('startSection').style.display = 'none';
+            document.getElementById('examSection').style.display = 'block';
+            startTimer();
         }
 
         function displayQuestions() {
@@ -272,31 +287,38 @@
             }, 1000);
         }
 
+        function calculateScore() {
+            let score = 0;
+            questions.forEach(q => {
+                if (answers[q.id] === q.correct) {
+                    score++;
+                }
+            });
+            return score;
+        }
+
         function submitExam() {
             clearInterval(timerInterval);
             const studentId = document.getElementById('studentId').value;
             const studentName = document.getElementById('studentName').value;
 
-            fetch('http://localhost:5000/api/submit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    student_id: studentId,
-                    student_name: studentName,
-                    answers: answers
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('examSection').style.display = 'none';
-                document.getElementById('resultsSection').style.display = 'block';
-                document.getElementById('studentResult').textContent = 
-                    `Name: ${studentName} (ID: ${studentId})`;
-                document.getElementById('scoreDisplay').textContent = 
-                    `Score: ${data.score}/${data.total} (${data.percentage}%)`;
-            });
+            // Calculate score
+            const score = calculateScore();
+            const total = questions.length;
+            const percentage = ((score / total) * 100).toFixed(2);
+
+            // Store submission in localStorage
+            const submittedExams = JSON.parse(localStorage.getItem('submittedExams') || '[]');
+            submittedExams.push(studentId);
+            localStorage.setItem('submittedExams', JSON.stringify(submittedExams));
+
+            // Display results
+            document.getElementById('examSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('studentResult').textContent = 
+                `Name: ${studentName} (ID: ${studentId})`;
+            document.getElementById('scoreDisplay').textContent = 
+                `Score: ${score}/${total} (${percentage}%)`;
         }
     </script>
 </body>
