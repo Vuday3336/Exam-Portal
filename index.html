@@ -124,11 +124,22 @@
             margin: 20px 0;
         }
 
+        .error-message {
+            color: #ff4444;
+            text-align: center;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
         #examSection {
             display: none;
         }
 
         #resultsSection {
+            display: none;
+        }
+
+        #errorMessage {
             display: none;
         }
     </style>
@@ -138,8 +149,10 @@
         <div id="startSection">
             <h1>Online Exam Portal</h1>
             <div class="student-form">
+                <input type="text" id="studentId" placeholder="Enter your ID number" required>
                 <input type="text" id="studentName" placeholder="Enter your name" required>
-                <button onclick="startExam()">Start Exam</button>
+                <div id="errorMessage" class="error-message"></div>
+                <button onclick="checkAndStartExam()">Start Exam</button>
             </div>
         </div>
 
@@ -154,7 +167,7 @@
             <div class="results">
                 <div id="studentResult"></div>
                 <div class="score" id="scoreDisplay"></div>
-                <button onclick="location.reload()">Take Another Exam</button>
+                <button onclick="location.reload()">Back to Start</button>
             </div>
         </div>
     </div>
@@ -165,13 +178,38 @@
         let timeLeft = 180;
         let timerInterval;
 
-        function startExam() {
+        async function checkAndStartExam() {
+            const studentId = document.getElementById('studentId').value;
             const name = document.getElementById('studentName').value;
-            if (!name.trim()) {
-                alert('Please enter your name');
+            const errorMessage = document.getElementById('errorMessage');
+
+            if (!studentId.trim() || !name.trim()) {
+                errorMessage.textContent = 'Please enter both ID and name';
+                errorMessage.style.display = 'block';
                 return;
             }
 
+            try {
+                // Check if the ID has already submitted an exam
+                const checkResponse = await fetch(`http://localhost:5000/api/check-submission/${studentId}`);
+                const checkResult = await checkResponse.json();
+
+                if (checkResult.submitted) {
+                    errorMessage.textContent = 'You have already submitted an exam with this ID number';
+                    errorMessage.style.display = 'block';
+                    return;
+                }
+
+                // If not submitted, proceed with starting the exam
+                errorMessage.style.display = 'none';
+                startExam();
+            } catch (error) {
+                errorMessage.textContent = 'Error checking exam status. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        function startExam() {
             fetch('http://localhost:5000/api/questions')
                 .then(response => response.json())
                 .then(data => {
@@ -185,6 +223,7 @@
 
         function displayQuestions() {
             const questionsDiv = document.getElementById('questions');
+            questionsDiv.innerHTML = ''; // Clear existing questions
             questions.forEach(q => {
                 const questionHtml = `
                     <div class="question-container">
@@ -235,6 +274,7 @@
 
         function submitExam() {
             clearInterval(timerInterval);
+            const studentId = document.getElementById('studentId').value;
             const studentName = document.getElementById('studentName').value;
 
             fetch('http://localhost:5000/api/submit', {
@@ -243,6 +283,7 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    student_id: studentId,
                     student_name: studentName,
                     answers: answers
                 })
@@ -251,9 +292,10 @@
             .then(data => {
                 document.getElementById('examSection').style.display = 'none';
                 document.getElementById('resultsSection').style.display = 'block';
-                document.getElementById('studentResult').textContent = `Name: ${studentName}`;
+                document.getElementById('studentResult').textContent = 
+                    `Name: ${studentName} (ID: ${studentId})`;
                 document.getElementById('scoreDisplay').textContent = 
-                    `Score: ${data.score}/${data.total} (${data.percentage})`;
+                    `Score: ${data.score}/${data.total} (${data.percentage}%)`;
             });
         }
     </script>
